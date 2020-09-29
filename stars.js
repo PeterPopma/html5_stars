@@ -15,6 +15,7 @@ const BUFFER_PERCENTAGE_Y = 10;
 const DISTANCE_MULTIPLICATION_FACTOR = 0.8;
 const STARS_PER_LAYER = 100;
 const MAX_LAYERS = 99999;
+const SCALEPOWER = 0.00361445075499040250883138060853;
 
 const ZOOM_IN_LEFT = 10;
 const ZOOM_IN_TOP = 10;
@@ -31,19 +32,24 @@ const MOVE_UP_TOP = 1;
 const MOVE_DOWN_LEFT = 200;
 const MOVE_DOWN_TOP = 128;
 const MOVE_SIZE = 60;
+const MOVE_SPEED = 10;
 
 var canvas = document.querySelector('canvas');
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 var ctx = canvas.getContext('2d');
-ctx.font = "bold 30px Arial";
+ctx.font = "bold 24px Arial";
 
-// CurrentTopLayer represents a pixel of the scale slider (approx. 0-1000)
-// This corresponds to a logarithmic scale, 0 being the neighbourhood of our sun, and 1000 being the whole observable universe.
+// CurrentTopLayer represents a of stars at a certain scale
 // at any time, we are only watching the stars from current layer and the 10(=VISIBLE_LAYERS) layers below it.
-var CurrentTopLayer = 0;
-var OffsetX = 10;
+var CurrentTopLayer = 1;
+// the real distance of 1 pixel on the screen
+var CurrentScale = Math.pow(CurrentTopLayer, (1 - SCALEPOWER) + CurrentTopLayer * SCALEPOWER);
+// Offset from our sun in real distance
+var OffsetX = 0;
 var OffsetY = 0;
+var PreviousOffsetX = 0;
+var PreviousOffsetY = 0;
 var starsList = [];
 var gradient;
 var isMouseDown = false;   
@@ -64,7 +70,6 @@ moveUpImage.src = "images/move-up.png";
 moveDownImage.src = "images/move-down.png";
 
 initStars();
-CurrentTopLayer = 0;
 updateStars();
 
 // Add mouse events
@@ -111,10 +116,11 @@ function removeOldLayer(layer_number) {
 
 function zoomOut() {
   console.log("zoom out");
-    if(CurrentTopLayer<MAX_LAYERS) {
+    if(CurrentTopLayer<=MAX_LAYERS) {
     CurrentTopLayer++;
+	CurrentScale = Math.pow(CurrentTopLayer, (1 - SCALEPOWER) + CurrentTopLayer * SCALEPOWER);
     var new_layer_number = CurrentTopLayer + BUFFER_LAYERS;
-    if(new_layer_number<MAX_LAYERS-BUFFER_LAYERS) {
+    if(new_layer_number<=MAX_LAYERS-BUFFER_LAYERS) {
       createNewLayer(new_layer_number);
       var old_layer_number = CurrentTopLayer - VISIBLE_LAYERS - BUFFER_LAYERS
       if(old_layer_number>=0) {
@@ -126,10 +132,11 @@ function zoomOut() {
 
 function zoomIn() {
   console.log("zoom in");
-  if(CurrentTopLayer>0) {
+  if(CurrentTopLayer>1) {
     CurrentTopLayer--;
+	CurrentScale = Math.pow(CurrentTopLayer, (1 - SCALEPOWER) + CurrentTopLayer * SCALEPOWER);
     var new_layer_number = CurrentTopLayer - VISIBLE_LAYERS - BUFFER_LAYERS;
-    if(new_layer_number>=0) {
+    if(new_layer_number>0) {
       createNewLayer(new_layer_number);
       removeOldLayer(CurrentTopLayer + BUFFER_LAYERS);
     }   
@@ -154,22 +161,26 @@ function checkButtons() {
   
   // move left	  
   if(MouseX>=MOVE_LEFT_LEFT && MouseX<MOVE_LEFT_LEFT+ZOOM_SIZE && MouseY>=MOVE_LEFT_TOP && MouseY<MOVE_LEFT_TOP+ZOOM_SIZE) {
-    OffsetX-=10;
+	PreviousOffsetX = OffsetX;
+    OffsetX -= CurrentScale * MOVE_SPEED;
   }
   
   // move right	  
   if(MouseX>=MOVE_RIGHT_LEFT && MouseX<MOVE_RIGHT_LEFT+ZOOM_SIZE && MouseY>=MOVE_RIGHT_TOP && MouseY<MOVE_RIGHT_TOP+ZOOM_SIZE) {
-    OffsetX+=10;
+	PreviousOffsetX = OffsetX;
+    OffsetX += CurrentScale * MOVE_SPEED;
   }
   
   // move up	  
   if(MouseX>=MOVE_UP_LEFT && MouseX<MOVE_UP_LEFT+ZOOM_SIZE && MouseY>=MOVE_UP_TOP && MouseY<MOVE_UP_TOP+ZOOM_SIZE) {
-    OffsetY-=10;	  
+	PreviousOffsetY = OffsetY;
+    OffsetY -= CurrentScale * MOVE_SPEED;	  
   }
   
   // move down	  
   if(MouseX>=MOVE_DOWN_LEFT && MouseX<MOVE_DOWN_LEFT+ZOOM_SIZE && MouseY>=MOVE_DOWN_TOP && MouseY<MOVE_DOWN_TOP+ZOOM_SIZE) {
-    OffsetY+=10;	  
+	PreviousOffsetY = OffsetY;
+    OffsetY += CurrentScale * MOVE_SPEED;	  
   }
 }
 
@@ -189,7 +200,7 @@ if (typeof (canvas.getContext) !== undefined) {
 
 function initStars() {
   var layer;
-  for (layer=0; layer<=BUFFER_LAYERS; layer++) {
+  for (layer=1; layer<=BUFFER_LAYERS; layer++) {
     var x_left = -CANVAS_WIDTH * BUFFER_PERCENTAGE_X/100;
     var x_right = CANVAS_WIDTH * (100+BUFFER_PERCENTAGE_X)/100;
     var y_top = -CANVAS_HEIGHT * BUFFER_PERCENTAGE_Y/100;
@@ -211,8 +222,14 @@ function drawIcons() {
 }
 
 function updateStars() {
- // deleteOldStars();
- // createNewStars();
+	for(current_layer=CurrentTopLayer; current_layer>CurrentTopLayer-VISIBLE_LAYERS; current_layer--) {
+		if(current_layer>0) {
+		 // remove stars from the layer that are no longer visible
+		 
+		 // add same amount of stars to the layer that have been deleted to new visible area
+		 
+		}
+	}
 }
 
 function drawStars() {
@@ -238,24 +255,28 @@ function drawStars() {
     }
   }
   
-  DrawText("Stars in screen area: " + (CurrentTopLayer * 1000), 10, 250); 
-  DrawText("Offset X: " + OffsetX, 10, 300); 
-  DrawText("Offset Y: " + OffsetY, 10, 350); 
-  DrawText("Layer: " + CurrentTopLayer, 10, 400);
+  DrawText("Stars in this area: " + (CurrentTopLayer * 1000), 10, 250); 
+  DrawText("Offset X: " + OffsetX, 10, 280); 
+  DrawText("Offset Y: " + OffsetY, 10, 310); 
+  DrawText("Layer: " + CurrentTopLayer, 10, 340);
+  DrawText("Scale: 1:" + Math.round(CurrentScale), 10, 370);
 }
 
 function DrawText(text, x, y) {
+	/*
   gradient = ctx.createLinearGradient(0, y-20, 0, y);
   gradient.addColorStop("0"," yellow");
   gradient.addColorStop("0.7", "orange");
   gradient.addColorStop("0.8", "goldenrod");
   gradient.addColorStop("0.9", "saddlebrown");
   gradient.addColorStop("1.0", "sienna");
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = gradient;*/
+  ctx.fillStyle = 'yellow';
+  ctx.strokeStyle = 'black';  
   ctx.shadowColor = "rgb(90, 90, 90)";
   ctx.shadowOffsetX = 2;
   ctx.shadowOffsetY = 2;
-  ctx.shadowBlur = 4;
+  ctx.shadowBlur = 7;
 
   ctx.fillText(text, x, y);
 }
