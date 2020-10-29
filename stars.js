@@ -1,5 +1,5 @@
 const CANVAS_WIDTH = 1920;
-const CANVAS_HEIGHT = 1080;
+const CANVAS_HEIGHT = 1920;
 const CANVAS_CENTER_X = CANVAS_WIDTH / 2;
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2;
 // star data is stored for scales: [CurrentTopLayer-VISIBLE_SCALES-BUFFER_LAYERS] until [CurrentTopLayer+BUFFER_LAYERS]
@@ -8,44 +8,46 @@ const VISIBLE_LAYERS = 30;
 // to prevent "hops" subsequently moving left and right
 const BUFFER_LAYERS = 0;
 // to prevent "hops" subsequently moving up and down
-const BUFFER_PIXELS_X = 0;// CANVAS_WIDTH / 2;
+const BUFFER_PIXELS_X = 0;//CANVAS_WIDTH / 2;
 const BUFFER_PIXELS_Y = 0;//CANVAS_HEIGHT / 2;
 
-const MAX_LAYERS = 99999;
 const SCALE_MULTIPLICATION_FACTOR = 1.08;
-// At scale 1, 1 pixel equals 0.005 lightyears
 const LIGHTYEARS_PER_PIXEL_SCALE_1 = 0.01;
+const DIAMETER_OBSERVABLE_UNIVERSE = 93000000000;
+const RADIUS_OBSERVABLE_UNIVERSE = DIAMETER_OBSERVABLE_UNIVERSE/2;
+const NUM_STARS_IN_UNIVERSE = 1000000000000000000000000;
+// 10^24 stars in observable universe. radius universe 46.5 billion. #stars / (4/3 * PI * 46500000000^3) = 0.00000000079146420354094182443310004573847
+const STARS_PER_CUBIC_LIGHTYEAR = NUM_STARS_IN_UNIVERSE / (4/3 * Math.PI * Math.pow(RADIUS_OBSERVABLE_UNIVERSE, 3))
+const CUBIC_LIGHTYEARS_SCREEN_SCALE_1 = CANVAS_HEIGHT /* (this is considered as "depth") */  * CANVAS_WIDTH * CANVAS_HEIGHT * LIGHTYEARS_PER_PIXEL_SCALE_1 * LIGHTYEARS_PER_PIXEL_SCALE_1 * LIGHTYEARS_PER_PIXEL_SCALE_1;
+// Math.pow(SCALE_MULTIPLICATION_FACTOR, layer) * CANVAS_WIDTH * LIGHTYEARS_PER_PIXEL_SCALE_1 = 93.000.000.000 ly (diameter observable universe)
+// ->  Math.pow(SCALE_MULTIPLICATION_FACTOR, layer) =  93000000000 / (CANVAS_WIDTH * LIGHTYEARS_PER_PIXEL_SCALE_1)
+// ->  layer =  ln(93000000000 / (CANVAS_WIDTH * LIGHTYEARS_PER_PIXEL_SCALE_1))/ln(SCALE_MULTIPLICATION_FACTOR)
+const MAX_LAYERS = 1 + Math.floor(Math.log(DIAMETER_OBSERVABLE_UNIVERSE / (CANVAS_WIDTH * LIGHTYEARS_PER_PIXEL_SCALE_1))/Math.log(SCALE_MULTIPLICATION_FACTOR));   
 
 // milky way radius = 52850 ly, area = -> 2193713281 ly^2, 200000000000 stars  -> 91.17 stars/square ly
-// but we are only looking at one layer, so 
-const STARS_PER_SQUARE_LIGHTYEAR_SCALE_1 = 0.05;
-const USED_SCALE = Math.pow(SCALE_MULTIPLICATION_FACTOR, VISIBLE_LAYERS + BUFFER_LAYERS);   // we create stars for the largest area this layer appears in.
+// but we are only looking at one layer..
+const STARS_PER_SQUARE_LIGHTYEAR_SCALE_1 = 0.03;
 // in lightyears
-const STARS_AREA_WIDTH_LAYER_1 = LIGHTYEARS_PER_PIXEL_SCALE_1 * (CANVAS_WIDTH+BUFFER_PIXELS_X*2) * USED_SCALE;
-console.log("STARS_AREA_WIDTH_LAYER_1: " + STARS_AREA_WIDTH_LAYER_1);
-const STARS_AREA_HEIGHT_LAYER_1 = LIGHTYEARS_PER_PIXEL_SCALE_1 * (CANVAS_HEIGHT+BUFFER_PIXELS_Y*2) * USED_SCALE;
-console.log("STARS_AREA_HEIGHT_LAYER_1: " + STARS_AREA_HEIGHT_LAYER_1);
-const STARS_AREA_SQUARE_LAYER_1 = STARS_AREA_WIDTH_LAYER_1 * STARS_AREA_HEIGHT_LAYER_1;
-console.log("STARS_AREA_SQUARE_LAYER_1: " + STARS_AREA_SQUARE_LAYER_1);
-const STARS_PER_LAYER = Math.round(STARS_PER_SQUARE_LIGHTYEAR_SCALE_1 * STARS_AREA_SQUARE_LAYER_1);
-const HALF_STARS_AREA_WIDTH_LAYER_1 = STARS_AREA_WIDTH_LAYER_1 / 2;
-const HALF_STARS_AREA_HEIGHT_LAYER_1 = STARS_AREA_HEIGHT_LAYER_1 / 2;
+const STARS_AREA_HALFWIDTH_LAYER_1 = LIGHTYEARS_PER_PIXEL_SCALE_1/2 * (CANVAS_WIDTH+BUFFER_PIXELS_X*2);
+console.log("STARS_AREA_HALFWIDTH_LAYER_1: " + STARS_AREA_HALFWIDTH_LAYER_1);
+const STARS_AREA_HALFHEIGHT_LAYER_1 = LIGHTYEARS_PER_PIXEL_SCALE_1/2 * (CANVAS_HEIGHT+BUFFER_PIXELS_Y*2);
+console.log("STARS_AREA_HALFHEIGHT_LAYER_1: " + STARS_AREA_HALFHEIGHT_LAYER_1);
+const USED_SCALE = Math.pow(SCALE_MULTIPLICATION_FACTOR, VISIBLE_LAYERS + BUFFER_LAYERS);   // we create stars for the largest area this layer appears in.
+const USED_AREA_SQUARE_LAYER_1 = STARS_AREA_HALFWIDTH_LAYER_1 * 2 * STARS_AREA_HALFHEIGHT_LAYER_1 * 2 * USED_SCALE * USED_SCALE;
+console.log("USED_AREA_SQUARE_LAYER_1: " + USED_AREA_SQUARE_LAYER_1);
+const STARS_PER_LAYER = Math.round(STARS_PER_SQUARE_LIGHTYEAR_SCALE_1 * USED_AREA_SQUARE_LAYER_1);
 
+const ICON_SIZE = 70;
 const ZOOM_IN_LEFT = 10;
 const ZOOM_IN_TOP = 70;
-const ZOOM_OUT_LEFT = 10;
-const ZOOM_OUT_TOP = 160;
-const ZOOM_SIZE = 80;
+const ZOOM_OUT_LEFT = ZOOM_IN_LEFT + ICON_SIZE;
+const ZOOM_OUT_TOP = 70;
+const HOME_LEFT = 10;
+const HOME_TOP = 150;
 
-const MOVE_LEFT_LEFT = 138;
-const MOVE_LEFT_TOP = 125;
-const MOVE_RIGHT_LEFT = 262;
-const MOVE_RIGHT_TOP = 125;
-const MOVE_UP_LEFT = 200;
-const MOVE_UP_TOP = 61;
-const MOVE_DOWN_LEFT = 200;
-const MOVE_DOWN_TOP = 188;
-const MOVE_SIZE = 60;
+const NAVIGATOR_LEFT = 170;
+const NAVIGATOR_TOP = 50;
+const NAVIGATOR_SIZE = 200;
 const MOVE_SPEED_PIXELS = 10;
 
 var canvas = document.querySelector('canvas');
@@ -67,21 +69,19 @@ var gradient;
 var isMouseDown = false;
 var MouseX, MouseY;
 var delayInMilliseconds = 1;
+var RemoveCount = 0;
+var StarsInScreen = 0;
 
 var zoomInImage = new Image();
 var zoomOutImage = new Image();
-var moveLeftImage = new Image();
-var moveRightImage = new Image();
-var moveUpImage = new Image();
-var moveDownImage = new Image();
+var navigatorImage = new Image();
 var arrowWidthImage = new Image();
+var homeImage = new Image();
 zoomInImage.src = "images/zoom-in.png";
 zoomOutImage.src = "images/zoom-out.png";
-moveLeftImage.src = "images/move-left.png";
-moveRightImage.src = "images/move-right.png";
-moveUpImage.src = "images/move-up.png";
-moveDownImage.src = "images/move-down.png";
+navigatorImage.src = "images/navigator.png";
 arrowWidthImage.src = "images/arrow-width.png";
+homeImage.src = "images/home.png";
 
 initStars();
 
@@ -100,24 +100,30 @@ canvas.addEventListener('mouseup', function (event) {
 }, false);
 
 // converts x (in lightyears from sun) to a point on the screen
-function xRealToScreen(x, layer) {
+function xLightyearsToScreen(x, layer) {
   return CANVAS_CENTER_X + (x - OffsetX) / (LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(layer));
 }
 
 // converts y (in lightyears from sun) to a point on the screen
-function yRealToScreen(y, layer) {
+function yLightyearsToScreen(y, layer) {
   return CANVAS_CENTER_Y + (y - OffsetY) / (LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(layer));
 }
 
-function xRealToScreen(x) {
-  return CANVAS_CENTER_X + (x - OffsetX) / (LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(CurrentTopLayer));
+// converts x (in pixels on screen) to lightyears from sun
+function xScreenToLightyears(x, layer) {
+  return OffsetX + (x - CANVAS_CENTER_X) * LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(layer);
 }
 
-function yRealToScreen(y) {
-  return CANVAS_CENTER_Y + (y - OffsetY) / (LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(CurrentTopLayer));
+// converts y (in pixels on screen) to lightyears from sun
+function yScreenToLightyears(y, layer) {
+  return OffsetY + (y - CANVAS_CENTER_Y) * LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(layer);
 }
 
 function layerToScale(layer) {
+  // The last layer should be exactly the scale what we want as maximum
+  if(layer==MAX_LAYERS) {
+    return DIAMETER_OBSERVABLE_UNIVERSE / (CANVAS_WIDTH * LIGHTYEARS_PER_PIXEL_SCALE_1); 
+  }
   return Math.pow(SCALE_MULTIPLICATION_FACTOR, layer - 1);
 }
 
@@ -131,12 +137,13 @@ function sleep(milliseconds) {
 }
 
 function zoomOut() {
-  if (CurrentTopLayer <= MAX_LAYERS) {
+  if (CurrentTopLayer < MAX_LAYERS) {
     CurrentTopLayer++;
     console.log("zoom out. currenttoplayer: " + CurrentTopLayer);
     CurrentScale = layerToScale(CurrentTopLayer);
+
     var new_layer_number = CurrentTopLayer + BUFFER_LAYERS;
-    if (new_layer_number <= MAX_LAYERS - BUFFER_LAYERS) {
+    if (new_layer_number < MAX_LAYERS - BUFFER_LAYERS) {
       createNewLayer(new_layer_number);
       var old_layer_number = CurrentTopLayer - VISIBLE_LAYERS - BUFFER_LAYERS
       if (old_layer_number > 0) {
@@ -161,105 +168,122 @@ function zoomIn() {
 
 function checkButtons() {
 
+  var old_area_left, old_area_top, old_area_right, old_area_bottom;
+  var new_area_left, new_area_top, new_area_right, new_area_bottom;
+
   // zoom in	  
-  if (MouseX >= ZOOM_IN_LEFT && MouseX < ZOOM_IN_LEFT + ZOOM_SIZE && MouseY >= ZOOM_IN_TOP && MouseY < ZOOM_IN_TOP + ZOOM_SIZE) {
-    sleep(20);
+  if (MouseX >= ZOOM_IN_LEFT && MouseX < ZOOM_IN_LEFT + ICON_SIZE && MouseY >= ZOOM_IN_TOP && MouseY < ZOOM_IN_TOP + ICON_SIZE) {
+    sleep(80);
     zoomIn();
   }
 
   // zoom out	  
-  if (MouseX >= ZOOM_OUT_LEFT && MouseX < ZOOM_OUT_LEFT + ZOOM_SIZE && MouseY >= ZOOM_OUT_TOP && MouseY < ZOOM_OUT_TOP + ZOOM_SIZE) {
-    sleep(20);
+  if (MouseX >= ZOOM_OUT_LEFT && MouseX < ZOOM_OUT_LEFT + ICON_SIZE && MouseY >= ZOOM_OUT_TOP && MouseY < ZOOM_OUT_TOP + ICON_SIZE) {
+    sleep(80);
     zoomOut();
+  }  
+  
+  // go home
+  if (MouseX >= HOME_LEFT && MouseX < HOME_LEFT + ICON_SIZE && MouseY >= HOME_TOP && MouseY < HOME_TOP + ICON_SIZE) {
+    OffsetX = 0;
+    OffsetY = 0;
   }
 
   // move left	  
-  if (MouseX >= MOVE_LEFT_LEFT && MouseX < MOVE_LEFT_LEFT + ZOOM_SIZE && MouseY >= MOVE_LEFT_TOP && MouseY < MOVE_LEFT_TOP + ZOOM_SIZE) {
+  if (MouseX >= NAVIGATOR_LEFT && MouseX < NAVIGATOR_LEFT + NAVIGATOR_SIZE/3 && MouseY >= NAVIGATOR_TOP && MouseY < NAVIGATOR_TOP + NAVIGATOR_SIZE) {
     OffsetX -= CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1;
-    updateStars(0, OffsetX);
+    old_area_left = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X,CurrentTopLayer);
+    old_area_right = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X+MOVE_SPEED_PIXELS,CurrentTopLayer);
+    new_area_left = xScreenToLightyears(-BUFFER_PIXELS_X-MOVE_SPEED_PIXELS,CurrentTopLayer);
+    new_area_right = xScreenToLightyears(-BUFFER_PIXELS_X,CurrentTopLayer);
+    new_area_top = old_area_top = yScreenToLightyears(-BUFFER_PIXELS_Y,CurrentTopLayer);
+    new_area_bottom = old_area_bottom = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y,CurrentTopLayer);
+    updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom);
   }
 
   // move right	  
-  if (MouseX >= MOVE_RIGHT_LEFT && MouseX < MOVE_RIGHT_LEFT + ZOOM_SIZE && MouseY >= MOVE_RIGHT_TOP && MouseY < MOVE_RIGHT_TOP + ZOOM_SIZE) {
+  if (MouseX >= NAVIGATOR_LEFT+NAVIGATOR_SIZE*2/3 && MouseX < NAVIGATOR_LEFT+NAVIGATOR_SIZE && MouseY >= NAVIGATOR_TOP && MouseY < NAVIGATOR_TOP + NAVIGATOR_SIZE) {
     OffsetX += CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1;
-    updateStars(1, OffsetX);
+    old_area_left = xScreenToLightyears(-BUFFER_PIXELS_X-MOVE_SPEED_PIXELS,CurrentTopLayer);
+    old_area_right = xScreenToLightyears(-BUFFER_PIXELS_X,CurrentTopLayer);
+    new_area_left = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X,CurrentTopLayer);
+    new_area_right = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X+MOVE_SPEED_PIXELS,CurrentTopLayer);
+    new_area_top = old_area_top = yScreenToLightyears(-BUFFER_PIXELS_Y,CurrentTopLayer);
+    new_area_bottom = old_area_bottom = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y,CurrentTopLayer);
+    updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom);
   }
 
   // move up	  
-  if (MouseX >= MOVE_UP_LEFT && MouseX < MOVE_UP_LEFT + ZOOM_SIZE && MouseY >= MOVE_UP_TOP && MouseY < MOVE_UP_TOP + ZOOM_SIZE) {
+  if (MouseX >= NAVIGATOR_LEFT && MouseX < NAVIGATOR_LEFT + NAVIGATOR_SIZE && MouseY >= NAVIGATOR_TOP && MouseY < NAVIGATOR_TOP + NAVIGATOR_SIZE/2) {
     OffsetY -= CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1;
-    updateStars(2, OffsetY);
+    old_area_top = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y,CurrentTopLayer);
+    old_area_bottom = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y+MOVE_SPEED_PIXELS,CurrentTopLayer);
+    new_area_top = yScreenToLightyears(-BUFFER_PIXELS_Y-MOVE_SPEED_PIXELS,CurrentTopLayer);
+    new_area_bottom = yScreenToLightyears(-BUFFER_PIXELS_Y,CurrentTopLayer);
+    new_area_left = old_area_left = xScreenToLightyears(-BUFFER_PIXELS_X,CurrentTopLayer);
+    new_area_right = old_area_right = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X,CurrentTopLayer);
+    updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom);
   }
 
   // move down	  
-  if (MouseX >= MOVE_DOWN_LEFT && MouseX < MOVE_DOWN_LEFT + ZOOM_SIZE && MouseY >= MOVE_DOWN_TOP && MouseY < MOVE_DOWN_TOP + ZOOM_SIZE) {
+  if (MouseX >= NAVIGATOR_LEFT && MouseX < NAVIGATOR_LEFT + NAVIGATOR_SIZE && MouseY >= NAVIGATOR_TOP+NAVIGATOR_SIZE*2/3 && MouseY < NAVIGATOR_TOP+NAVIGATOR_SIZE) {
     OffsetY += CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1;
-    updateStars(3, OffsetY);
+    old_area_top = yScreenToLightyears(-BUFFER_PIXELS_Y-MOVE_SPEED_PIXELS,CurrentTopLayer);
+    old_area_bottom = yScreenToLightyears(-BUFFER_PIXELS_Y,CurrentTopLayer);
+    new_area_top = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y,CurrentTopLayer);
+    new_area_bottom = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y+MOVE_SPEED_PIXELS,CurrentTopLayer);
+    new_area_left = old_area_left = xScreenToLightyears(-BUFFER_PIXELS_X,CurrentTopLayer);
+    new_area_right = old_area_right = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X,CurrentTopLayer);
+    updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom);
   }
 }
 
-function updateStars(direction, offset) {
+function updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom) {
+
+  // Remove and generate the star per layer
   for (current_layer = CurrentTopLayer; current_layer > CurrentTopLayer - VISIBLE_LAYERS; current_layer--) {
     if (current_layer > 0) {
-      var current_scale = layerToScale(current_layer);
-      var old_area_left, old_area_top, old_area_right, old_area_bottom;
-      var new_area_left, new_area_top, new_area_right, new_area_bottom;
-
-      if (direction==0) {  // moved left
-        old_area_left = offset + CANVAS_WIDTH*current_scale + BUFFER_PIXELS_X*current_scale;
-        old_area_right = old_area_right + MOVE_SPEED_PIXELS*current_scale;
-        new_area_left = offset - BUFFER_PIXELS_X*current_scale;
-        new_area_right = new_area_left + MOVE_SPEED_PIXELS*current_scale;
-        old_area_top = new_area_top = OffsetY - BUFFER_PIXELS_Y*current_scale;
-        old_area_bottom = new_area_bottom = OffsetY + CANVAS_HEIGHT*current_scale + BUFFER_PIXELS_Y*current_scale;
-      }
-      if (direction==1) {  // moved right
-        old_area_right = offset - BUFFER_PIXELS_X*current_scale;
-        old_area_left = old_area_right - MOVE_SPEED_PIXELS*current_scale;
-        new_area_right = offset + CANVAS_WIDTH*current_scale + BUFFER_PIXELS_X*current_scale;
-        new_area_left = offset - MOVE_SPEED_PIXELS*current_scale;
-        old_area_top = new_area_top = OffsetY - BUFFER_PIXELS_Y*current_scale;
-        old_area_bottom = new_area_bottom = OffsetY + CANVAS_HEIGHT*current_scale + BUFFER_PIXELS_Y*current_scale;
-      }
-      if (direction==2) {  // moved up
-        old_area_top = offset + CANVAS_HEIGHT*current_scale + BUFFER_PIXELS_Y*current_scale;
-        old_area_bottom = old_area_top + MOVE_SPEED_PIXELS*current_scale;
-        new_area_top = offset - BUFFER_PIXELS_Y*current_scale;
-        new_area_bottom = new_area_top + MOVE_SPEED_PIXELS*current_scale;
-        old_area_left = new_area_left = OffsetX - BUFFER_PIXELS_X*current_scale;
-        old_area_right = new_area_right = OffsetX + CANVAS_WIDTH*current_scale + BUFFER_PIXELS_X*current_scale;
-      }
-      if (direction==3) {  // moved down
-        old_area_bottom = offset - BUFFER_PIXELS_Y*current_scale;
-        old_area_top = old_area_bottom - MOVE_SPEED_PIXELS*current_scale;
-        new_area_bottom = offset + CANVAS_HEIGHT*current_scale + BUFFER_PIXELS_Y*current_scale;
-        new_area_top = offset - MOVE_SPEED_PIXELS*current_scale;
-        old_area_left = new_area_left = OffsetX - BUFFER_PIXELS_X*current_scale;
-        old_area_right = new_area_right = OffsetX + CANVAS_WIDTH*current_scale + BUFFER_PIXELS_X*current_scale;
-      }
+      
+      //console.log("old area: " + xLightyearsToScreen(old_area_left, current_layer) + ',' + yLightyearsToScreen(old_area_top, current_layer) + ',' + xLightyearsToScreen(old_area_right, current_layer) + ',' + yLightyearsToScreen(old_area_bottom, current_layer));
+      //console.log("new area: " + xLightyearsToScreen(new_area_left, current_layer) + ',' + yLightyearsToScreen(new_area_top, current_layer) + ',' + xLightyearsToScreen(new_area_right, current_layer) + ',' + yLightyearsToScreen(new_area_bottom, current_layer));
 
       // remove stars from the layer that are no longer visible
-      var amount = removeStarsFromOldArea(old_area_left, old_area_right, old_area_top, old_area_bottom, current_layer);
+      var amount = removeStarsFromOldArea(old_area_left, old_area_top, old_area_right,old_area_bottom, current_layer);
 
       // add same amount of stars to the layer that have been deleted to new visible area
       if (amount>0) {
-        generateStars(new_area_left, new_area_right, new_area_top, new_area_bottom, current_layer, amount);
+//        console.log("generating stars on screen area: " + xLightyearsToScreen(new_area_left,current_layer) + "," + yLightyearsToScreen(new_area_top,current_layer) + "," + xLightyearsToScreen(new_area_right,current_layer) + "," + yLightyearsToScreen(new_area_bottom,current_layer) );
+        generateStars(new_area_left, new_area_top, new_area_right, new_area_bottom, current_layer, amount);
       }
+      
     }
+  }
+
+  StarsInScreen = 0;
+  for (var index = starsList.length - 1; index >= 0; index--) {
+      if (starsList[index].x >= xScreenToLightyears(0,1) && starsList[index].x < xScreenToLightyears(CANVAS_WIDTH,1) && starsList[index].y >= yScreenToLightyears(0,1) && starsList[index].y < yScreenToLightyears(CANVAS_HEIGHT,1)) {
+        StarsInScreen++;
+      }
   }
 }
 
-function removeStarsFromOldArea(old_area_left, old_area_right, old_area_top, old_area_bottom, layer_number) {
+function removeStarsFromOldArea(old_area_left,  old_area_top, old_area_right, old_area_bottom, layer_number) {
   var remove_count = 0;
   for (var index = starsList.length - 1; index >= 0; index--) {
     if (starsList[index].layer == layer_number) {
       if (starsList[index].x >= old_area_left && starsList[index].x < old_area_right && starsList[index].y >= old_area_top && starsList[index].y < old_area_bottom) {
+        console.log("removed star at: " + xLightyearsToScreen(starsList[index].x, 1) + ',' + yLightyearsToScreen(starsList[index].y, 1));
         starsList.splice(index, 1);
+        RemoveCount++;
         remove_count++;
       }
     }
   };
-  console.log("removed " + remove_count + " stars from layer " + layer);
+  if(remove_count>0) {
+    console.log("removed " + remove_count + " stars from layer: " + layer_number);
+//    console.log("area: " + old_area_left + "," + old_area_top + "," + old_area_left + "," + old_area_left );
+//    console.log("screen area: " + xLightyearsToScreen(old_area_left,layer_number) + "," + yLightyearsToScreen(old_area_top,layer_number) + "," + xLightyearsToScreen(old_area_right,layer_number) + "," + yLightyearsToScreen(old_area_bottom,layer_number) );
+  }
   return remove_count;
 }
 
@@ -279,36 +303,30 @@ if (typeof (canvas.getContext) !== undefined) {
 
 function drawIcons() {
   ctx.drawImage(arrowWidthImage, 0, 2, CANVAS_WIDTH, 70);
-  ctx.drawImage(zoomInImage, ZOOM_IN_LEFT, ZOOM_IN_TOP, ZOOM_SIZE, ZOOM_SIZE);
-  ctx.drawImage(zoomOutImage, ZOOM_OUT_LEFT, ZOOM_OUT_TOP, ZOOM_SIZE, ZOOM_SIZE);
-  ctx.drawImage(moveLeftImage, MOVE_LEFT_LEFT, MOVE_LEFT_TOP, MOVE_SIZE, MOVE_SIZE);
-  ctx.drawImage(moveRightImage, MOVE_RIGHT_LEFT, MOVE_RIGHT_TOP, MOVE_SIZE, MOVE_SIZE);
-  ctx.drawImage(moveUpImage, MOVE_UP_LEFT, MOVE_UP_TOP, MOVE_SIZE, MOVE_SIZE);
-  ctx.drawImage(moveDownImage, MOVE_DOWN_LEFT, MOVE_DOWN_TOP, MOVE_SIZE, MOVE_SIZE);
+  ctx.drawImage(zoomInImage, ZOOM_IN_LEFT, ZOOM_IN_TOP, ICON_SIZE, ICON_SIZE);
+  ctx.drawImage(zoomOutImage, ZOOM_OUT_LEFT, ZOOM_OUT_TOP, ICON_SIZE, ICON_SIZE);
+  ctx.drawImage(navigatorImage, NAVIGATOR_LEFT, NAVIGATOR_TOP, NAVIGATOR_SIZE, NAVIGATOR_SIZE);
+  ctx.drawImage(homeImage, HOME_LEFT,HOME_TOP, ICON_SIZE, ICON_SIZE);
 }
 
 // At layer 1, no star must be closer than 6ly from 0,0 (because there is only Alpha Centauri and the sun)
-function createLayer1Star(x_real_minimum, x_real_maximum, y_real_minimum, y_real_maximum) {
+function createLayer1Star(x_real_minimum, y_real_minimum, x_real_maximum, y_real_maximum) {
   var distance = 0, new_star;
   while (distance < 6) {
     new_star = { x: Math.random() * (x_real_maximum - x_real_minimum) + x_real_minimum, y: Math.random() * (y_real_maximum - y_real_minimum) + y_real_minimum, layer: 1 };
     distance = Math.sqrt(Math.pow(new_star.x, 2) + Math.pow(new_star.y, 2));
-  }
+console.log("created star at: " + xLightyearsToScreen(new_star.x, 1) + ',' + yLightyearsToScreen(new_star.y, 1));
+}
   return new_star;
 }
 
-function generateStars(x_real_minimum, x_real_maximum, y_real_minimum, y_real_maximum, layer, num_stars) {
+function generateStars(x_real_minimum, y_real_minimum, x_real_maximum, y_real_maximum, layer, num_stars) {
   console.log("generating " + num_stars + " stars on layer: " + layer);
-  if (layer == 1) {
-    new_star = { x: 0, y: 0, layer: layer };
-    starsList.push(new_star);
-    new_star = { x: 4.2, y: 0, layer: layer };
-    starsList.push(new_star);
-  }
+
   for (i = 0; i < num_stars; i++) {
     var new_star;
     if (layer == 1) {
-      new_star = createLayer1Star(x_real_minimum, x_real_maximum, y_real_minimum, y_real_maximum);
+      new_star = createLayer1Star(x_real_minimum, y_real_minimum, x_real_maximum, y_real_maximum);
     } else {
       new_star = { x: Math.random() * (x_real_maximum - x_real_minimum) + x_real_minimum, y: Math.random() * (y_real_maximum - y_real_minimum) + y_real_minimum, layer: layer };
     }
@@ -321,13 +339,16 @@ function createNewLayer(layer) {
   // determine the area to generate stars for
   // the scale is based on the largest scale the stars are visible in, 
   // so that we don't need to generate stars for every layer when zooming in- and out
-  const scale = layerToScale(layer + VISIBLE_LAYERS + BUFFER_LAYERS);
-  var x_real_minimum = OffsetX - HALF_STARS_AREA_WIDTH_LAYER_1 * scale;
-  var x_real_maximum = OffsetX + HALF_STARS_AREA_WIDTH_LAYER_1 * scale;
-  var y_real_minimum = OffsetY - HALF_STARS_AREA_HEIGHT_LAYER_1 * scale;
-  var y_real_maximum = OffsetY + HALF_STARS_AREA_HEIGHT_LAYER_1 * scale;
-  generateStars(x_real_minimum, x_real_maximum, y_real_minimum, y_real_maximum, layer, STARS_PER_LAYER);
-  console.log("added " + STARS_PER_LAYER + " items.");
+  const used_scale = layerToScale(layer + (VISIBLE_LAYERS - 1) + BUFFER_LAYERS);
+  var x_real_minimum = OffsetX - (STARS_AREA_HALFWIDTH_LAYER_1) * used_scale;
+  var x_real_maximum = OffsetX + (STARS_AREA_HALFWIDTH_LAYER_1) * used_scale;
+  var y_real_minimum = OffsetY - (STARS_AREA_HALFHEIGHT_LAYER_1) * used_scale;
+  var y_real_maximum = OffsetY + (STARS_AREA_HALFHEIGHT_LAYER_1) * used_scale;
+  if(layer==1) {
+    console.log("real_minmax= " + x_real_minimum + "," + x_real_maximum + "," + y_real_minimum + "," + y_real_maximum);
+    generateStars(x_real_minimum,  y_real_minimum, x_real_maximum, y_real_maximum, layer, STARS_PER_LAYER);
+    console.log("added " + STARS_PER_LAYER + " items.");
+  }
 }
 
 function initStars() {
@@ -344,11 +365,22 @@ function removeOldLayer(layer_number) {
       starsList.splice(index, 1);
       remove_count++;
     }
-  };
+  }
   if (remove_count == 0) {
-    console.log("REMOVING FAILED!!! ");
+    console.log("REMOVED EMPTY LAYER!!! ");
   }
   console.log("removed " + remove_count + " items.");
+}
+
+function convertEtoNumber(stars_in_screen, index) {
+  if(index!=-1) {
+    var begin_index = stars_in_screen.indexOf(".");
+    var digits_present = index - begin_index - 1;
+    var digits_wanted = stars_in_screen.substr(index+2);
+    var zeroes_added = digits_wanted - digits_present;
+    stars_in_screen = stars_in_screen.substr(0, begin_index) + stars_in_screen.substring(begin_index+1, index-1)  + "0" /* to prevent showing rounding errors */ + "0".repeat(zeroes_added)
+  }
+  return stars_in_screen;
 }
 
 function drawStars() {
@@ -361,60 +393,57 @@ function drawStars() {
   ctx.shadowOffsetY = 1;
   ctx.shadowBlur = 5;
   for (current_star of starsList) {
-    var depth = CurrentTopLayer - current_star.layer;
-    if (depth >= 0 && depth < VISIBLE_LAYERS) {
-      var star_size = 5 - parseInt((depth) / 2);
-      var color = 255 - depth * 20;
-
-      ctx.fillStyle = "rgb(" + color + "," + color + "," + color + ")";
-      if(depth==1) {
-        ctx.fillStyle = "yellow";
-      }
-      if(depth==2) {
-        ctx.fillStyle = "red";
-      }
-      if(depth==3) {
-        ctx.fillStyle = "green";
-      }
-      if(depth==4) {
-        ctx.fillStyle = "yellow";
-      }
-      if(depth==5) {
-        ctx.fillStyle = "brown";
-      }
-      if(depth==6) {
-        ctx.fillStyle = "purple";
-      }
-      if(depth==7) {
-        ctx.fillStyle = "orange";
-      }
-      if(depth==8) {
-        ctx.fillStyle = "pink";
-      }
-      if(depth>8) {
-        ctx.fillStyle = "white";
-      }     
+    var depth = 1 + CurrentTopLayer - current_star.layer;
+    if (depth > 0 && depth <= VISIBLE_LAYERS) {
+      var star_size = 5 - parseInt((depth) / 10);
+      var color = 255 - depth * 5;
+      ctx.fillStyle = "rgb(" + color + "," + color + "," + color + ")";    
       ctx.beginPath();
-      var screen_x = xRealToScreen(current_star.x, current_star.layer);
-      var screen_y = yRealToScreen(current_star.y, current_star.layer);
-      ctx.arc(screen_x, screen_y, /*star_size*/5, 0 * Math.PI, 2 * Math.PI);
+      var screen_x = xLightyearsToScreen(current_star.x, depth);
+      var screen_y = yLightyearsToScreen(current_star.y, depth);
+      ctx.arc(screen_x, screen_y, star_size, 0 * Math.PI, 2 * Math.PI);
       ctx.fill();
     }
   }
+  // draw Sun and Alpha centauri
+  if (CurrentTopLayer < VISIBLE_LAYERS) {
+    var depth = CurrentTopLayer;
+    var star_size = 5 - parseInt((depth) / 10);
+    var color = 255 - depth * 5;
+    ctx.fillStyle = "rgb(" + color + "," + color + "," + color + ")";
+    ctx.beginPath();
+    var screen_x = xLightyearsToScreen(0, depth);
+    var screen_y = yLightyearsToScreen(0, depth);
+    ctx.arc(screen_x, screen_y, star_size, 0 * Math.PI, 2 * Math.PI);
+    ctx.fill();
+    ctx.beginPath();
+    var screen_x = xLightyearsToScreen(4.2, depth);
+    var screen_y = yLightyearsToScreen(0, depth);
+    ctx.arc(screen_x, screen_y, star_size, 0 * Math.PI, 2 * Math.PI);
+    ctx.fill();
+  }  
 
   ctx.font = "bold 24px Arial";
-  DrawText("Stars in screen area: " + (CurrentTopLayer * 1000), 10, 280, 'yellow');
+  var stars_in_screen = Math.round(STARS_PER_CUBIC_LIGHTYEAR * Math.PI * 4 / 3 * Math.pow(CANVAS_WIDTH/2*CurrentScale*LIGHTYEARS_PER_PIXEL_SCALE_1, 3));
+  stars_in_screen = stars_in_screen.toString();
+  stars_in_screen = convertEtoNumber(stars_in_screen, stars_in_screen.indexOf("e"));
+  DrawText("Avg. stars in screen area: " + stars_in_screen, 10, 280, 'yellow');
   DrawText("X-Distance from sun (ly): " + Math.round(OffsetX), 10, 310, 'yellow');
   DrawText("Y-Distance from sun (ly): " + Math.round(OffsetY), 10, 340, 'yellow');
   DrawText("Layer: " + CurrentTopLayer, 10, 370, 'yellow');
   DrawText("Scale: 1:" + Math.round(CurrentScale), 10, 400, 'yellow');
-  DrawText("Scale: 1:" + CurrentScale, 10, 700, 'yellow');
   DrawText(Math.round(CurrentScale * CANVAS_WIDTH * LIGHTYEARS_PER_PIXEL_SCALE_1 * 100) / 100 + " Lightyears", CANVAS_WIDTH / 2 - 100, 70, 'yellow');
   ctx.font = "18px Arial";
-  DrawText("Sun", xRealToScreen(0), yRealToScreen(0), 'white');
+  DrawText("Sun", xLightyearsToScreen(0, CurrentTopLayer), yLightyearsToScreen(0, CurrentTopLayer), 'white');
   if (CurrentTopLayer < VISIBLE_LAYERS) {
-    DrawText("Alpha centauri", xRealToScreen(4.2), yRealToScreen(0), 'white');
+    DrawText("Alpha centauri", xLightyearsToScreen(4.2, CurrentTopLayer), yLightyearsToScreen(0, CurrentTopLayer), 'white');
   }
+
+  DrawText("#Stars: " + starsList.length, 10, 700, 'white');
+  DrawText("RemoveCount: " + RemoveCount, 10, 730, 'white');
+  var depth = CurrentTopLayer - 1;
+  var screen_x = xLightyearsToScreen(4.2, depth);
+  DrawText("StarsInScreen: " + StarsInScreen, 10, 760, 'white');
 }
 
 function DrawText(text, x, y, color) {
