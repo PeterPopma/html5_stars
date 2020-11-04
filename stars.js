@@ -2,17 +2,15 @@ const CANVAS_WIDTH = 1920;
 const CANVAS_HEIGHT = 1920;
 const CANVAS_CENTER_X = CANVAS_WIDTH / 2;
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2;
-// star data is stored for scales: [CurrentTopLayer-VISIBLE_SCALES-BUFFER_LAYERS] until [CurrentTopLayer+BUFFER_LAYERS]
-// the buffer is to prevent "hops" when subsequently zooming in and out.
+// star data is stored for scales: [CurrentTopLayer-VISIBLE_SCALES] until [CurrentTopLayer]
 const VISIBLE_LAYERS = 30;
-// to prevent "hops" subsequently moving left and right
 const BUFFER_LAYERS = 0;
-// to prevent "hops" subsequently moving up and down
-const BUFFER_PIXELS_X = 0;//CANVAS_WIDTH / 2;
-const BUFFER_PIXELS_Y = 0;//CANVAS_HEIGHT / 2;
 
 const SCALE_MULTIPLICATION_FACTOR = 1.08;
 const LIGHTYEARS_PER_PIXEL_SCALE_1 = 0.01;
+const CANVAS_WIDTH_LIGHTYEARS_SCALE_1 = CANVAS_WIDTH*LIGHTYEARS_PER_PIXEL_SCALE_1;
+const CANVAS_HEIGHT_LIGHTYEARS_SCALE_1 = CANVAS_HEIGHT*LIGHTYEARS_PER_PIXEL_SCALE_1;
+
 const DIAMETER_OBSERVABLE_UNIVERSE = 93000000000;
 const RADIUS_OBSERVABLE_UNIVERSE = DIAMETER_OBSERVABLE_UNIVERSE/2;
 const NUM_STARS_IN_UNIVERSE = 1000000000000000000000000;
@@ -24,18 +22,8 @@ const CUBIC_LIGHTYEARS_SCREEN_SCALE_1 = CANVAS_HEIGHT /* (this is considered as 
 // ->  layer =  ln(93000000000 / (CANVAS_WIDTH * LIGHTYEARS_PER_PIXEL_SCALE_1))/ln(SCALE_MULTIPLICATION_FACTOR)
 const MAX_LAYERS = 1 + Math.floor(Math.log(DIAMETER_OBSERVABLE_UNIVERSE / (CANVAS_WIDTH * LIGHTYEARS_PER_PIXEL_SCALE_1))/Math.log(SCALE_MULTIPLICATION_FACTOR));   
 
-// milky way radius = 52850 ly, area = -> 2193713281 ly^2, 200000000000 stars  -> 91.17 stars/square ly
-// but we are only looking at one layer..
-const STARS_PER_SQUARE_LIGHTYEAR_SCALE_1 = 0.03;
-// in lightyears
-const STARS_AREA_HALFWIDTH_LAYER_1 = LIGHTYEARS_PER_PIXEL_SCALE_1/2 * (CANVAS_WIDTH+BUFFER_PIXELS_X*2);
-console.log("STARS_AREA_HALFWIDTH_LAYER_1: " + STARS_AREA_HALFWIDTH_LAYER_1);
-const STARS_AREA_HALFHEIGHT_LAYER_1 = LIGHTYEARS_PER_PIXEL_SCALE_1/2 * (CANVAS_HEIGHT+BUFFER_PIXELS_Y*2);
-console.log("STARS_AREA_HALFHEIGHT_LAYER_1: " + STARS_AREA_HALFHEIGHT_LAYER_1);
-const USED_SCALE = Math.pow(SCALE_MULTIPLICATION_FACTOR, VISIBLE_LAYERS + BUFFER_LAYERS);   // we create stars for the largest area this layer appears in.
-const USED_AREA_SQUARE_LAYER_1 = STARS_AREA_HALFWIDTH_LAYER_1 * 2 * STARS_AREA_HALFHEIGHT_LAYER_1 * 2 * USED_SCALE * USED_SCALE;
-console.log("USED_AREA_SQUARE_LAYER_1: " + USED_AREA_SQUARE_LAYER_1);
-const STARS_PER_LAYER = Math.round(STARS_PER_SQUARE_LIGHTYEAR_SCALE_1 * USED_AREA_SQUARE_LAYER_1);
+// it is hard to calculate this value, because we are looking at only 1 layer of this area on the universe
+const STARS_PER_LAYER = 800;
 
 const ICON_SIZE = 70;
 const ZOOM_IN_LEFT = 10;
@@ -64,13 +52,15 @@ var CurrentScale = Math.pow(SCALE_MULTIPLICATION_FACTOR, CurrentTopLayer - 1);
 // this is layer-independent, for example [OffsetX]=10 means the current centerX is 10 lightyears to the right from the sun
 var OffsetX = 0;
 var OffsetY = 0;
-var starsList = [];
+//var starsList = [];
+// we store star information in regions, indexed by layer and offset
+var regionsList = [];
 var gradient;
 var isMouseDown = false;
 var MouseX, MouseY;
 var delayInMilliseconds = 1;
-var RemoveCount = 0;
-var StarsInScreen = 0;
+var NumStars = 0;
+var NumRegions = 0;
 
 var zoomInImage = new Image();
 var zoomOutImage = new Image();
@@ -119,6 +109,20 @@ function yScreenToLightyears(y, layer) {
   return OffsetY + (y - CANVAS_CENTER_Y) * LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(layer);
 }
 
+// converts x (in pixels on screen) to lightyears from sun
+function xScreenToLightyears(x, layer, offsetX) {
+  return offsetX + (x - CANVAS_CENTER_X) * LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(layer);
+}
+
+// converts y (in pixels on screen) to lightyears from sun
+function yScreenToLightyears(y, layer, offsetY) {
+  return offsetY + (y - CANVAS_CENTER_Y) * LIGHTYEARS_PER_PIXEL_SCALE_1 * layerToScale(layer);
+}
+
+function scaleUsedToCreateLayer(layer) {
+  return layerToScale(layer + (VISIBLE_LAYERS - 1) + BUFFER_LAYERS);
+}
+
 function layerToScale(layer) {
   // The last layer should be exactly the scale what we want as maximum
   if(layer==MAX_LAYERS) {
@@ -142,13 +146,13 @@ function zoomOut() {
     console.log("zoom out. currenttoplayer: " + CurrentTopLayer);
     CurrentScale = layerToScale(CurrentTopLayer);
 
-    var new_layer_number = CurrentTopLayer + BUFFER_LAYERS;
-    if (new_layer_number < MAX_LAYERS - BUFFER_LAYERS) {
-      createNewLayer(new_layer_number);
-      var old_layer_number = CurrentTopLayer - VISIBLE_LAYERS - BUFFER_LAYERS
-      if (old_layer_number > 0) {
-        removeOldLayer(old_layer_number);
+    var new_layer = CurrentTopLayer + BUFFER_LAYERS;
+    if (new_layer < MAX_LAYERS + BUFFER_LAYERS) {
+      var invalid_layer = CurrentTopLayer - VISIBLE_LAYERS - BUFFER_LAYERS;
+      if (invalid_layer > 0) {
+        removeInvalidLayer(invalid_layer);
       }
+      createNewLayer(new_layer);
     }
   }
 }
@@ -158,18 +162,19 @@ function zoomIn() {
     CurrentTopLayer--;
     console.log("zoom in. currenttoplayer: " + CurrentTopLayer);
     CurrentScale = layerToScale(CurrentTopLayer);
-    var new_layer_number = CurrentTopLayer - VISIBLE_LAYERS - BUFFER_LAYERS;
-    if (new_layer_number > 0) {
-      createNewLayer(new_layer_number);
-      removeOldLayer(CurrentTopLayer + BUFFER_LAYERS + 1);
+
+    var new_layer = CurrentTopLayer - VISIBLE_LAYERS - BUFFER_LAYERS;
+    if (new_layer > 0) {
+      var invalid_layer = CurrentTopLayer + BUFFER_LAYERS + 1;
+      if (invalid_layer > 0) {
+        removeInvalidLayer(invalid_layer);
+      }
+      createNewLayer(new_layer);
     }
   }
 }
 
 function checkButtons() {
-
-  var old_area_left, old_area_top, old_area_right, old_area_bottom;
-  var new_area_left, new_area_top, new_area_right, new_area_bottom;
 
   // zoom in	  
   if (MouseX >= ZOOM_IN_LEFT && MouseX < ZOOM_IN_LEFT + ICON_SIZE && MouseY >= ZOOM_IN_TOP && MouseY < ZOOM_IN_TOP + ICON_SIZE) {
@@ -182,109 +187,86 @@ function checkButtons() {
     sleep(80);
     zoomOut();
   }  
-  
+
   // go home
   if (MouseX >= HOME_LEFT && MouseX < HOME_LEFT + ICON_SIZE && MouseY >= HOME_TOP && MouseY < HOME_TOP + ICON_SIZE) {
-    OffsetX = 0;
-    OffsetY = 0;
+    setPosition(0,0);
   }
 
   // move left	  
   if (MouseX >= NAVIGATOR_LEFT && MouseX < NAVIGATOR_LEFT + NAVIGATOR_SIZE/3 && MouseY >= NAVIGATOR_TOP && MouseY < NAVIGATOR_TOP + NAVIGATOR_SIZE) {
-    OffsetX -= CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1;
-    old_area_left = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X,CurrentTopLayer);
-    old_area_right = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X+MOVE_SPEED_PIXELS,CurrentTopLayer);
-    new_area_left = xScreenToLightyears(-BUFFER_PIXELS_X-MOVE_SPEED_PIXELS,CurrentTopLayer);
-    new_area_right = xScreenToLightyears(-BUFFER_PIXELS_X,CurrentTopLayer);
-    new_area_top = old_area_top = yScreenToLightyears(-BUFFER_PIXELS_Y,CurrentTopLayer);
-    new_area_bottom = old_area_bottom = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y,CurrentTopLayer);
-    updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom);
+    setPosition(OffsetX - CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1, OffsetY);
   }
 
   // move right	  
   if (MouseX >= NAVIGATOR_LEFT+NAVIGATOR_SIZE*2/3 && MouseX < NAVIGATOR_LEFT+NAVIGATOR_SIZE && MouseY >= NAVIGATOR_TOP && MouseY < NAVIGATOR_TOP + NAVIGATOR_SIZE) {
-    OffsetX += CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1;
-    old_area_left = xScreenToLightyears(-BUFFER_PIXELS_X-MOVE_SPEED_PIXELS,CurrentTopLayer);
-    old_area_right = xScreenToLightyears(-BUFFER_PIXELS_X,CurrentTopLayer);
-    new_area_left = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X,CurrentTopLayer);
-    new_area_right = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X+MOVE_SPEED_PIXELS,CurrentTopLayer);
-    new_area_top = old_area_top = yScreenToLightyears(-BUFFER_PIXELS_Y,CurrentTopLayer);
-    new_area_bottom = old_area_bottom = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y,CurrentTopLayer);
-    updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom);
+    setPosition(OffsetX + CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1, OffsetY);
   }
 
   // move up	  
   if (MouseX >= NAVIGATOR_LEFT && MouseX < NAVIGATOR_LEFT + NAVIGATOR_SIZE && MouseY >= NAVIGATOR_TOP && MouseY < NAVIGATOR_TOP + NAVIGATOR_SIZE/2) {
-    OffsetY -= CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1;
-    old_area_top = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y,CurrentTopLayer);
-    old_area_bottom = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y+MOVE_SPEED_PIXELS,CurrentTopLayer);
-    new_area_top = yScreenToLightyears(-BUFFER_PIXELS_Y-MOVE_SPEED_PIXELS,CurrentTopLayer);
-    new_area_bottom = yScreenToLightyears(-BUFFER_PIXELS_Y,CurrentTopLayer);
-    new_area_left = old_area_left = xScreenToLightyears(-BUFFER_PIXELS_X,CurrentTopLayer);
-    new_area_right = old_area_right = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X,CurrentTopLayer);
-    updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom);
+    setPosition(OffsetX, OffsetY - CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1);
   }
 
   // move down	  
   if (MouseX >= NAVIGATOR_LEFT && MouseX < NAVIGATOR_LEFT + NAVIGATOR_SIZE && MouseY >= NAVIGATOR_TOP+NAVIGATOR_SIZE*2/3 && MouseY < NAVIGATOR_TOP+NAVIGATOR_SIZE) {
-    OffsetY += CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1;
-    old_area_top = yScreenToLightyears(-BUFFER_PIXELS_Y-MOVE_SPEED_PIXELS,CurrentTopLayer);
-    old_area_bottom = yScreenToLightyears(-BUFFER_PIXELS_Y,CurrentTopLayer);
-    new_area_top = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y,CurrentTopLayer);
-    new_area_bottom = yScreenToLightyears(CANVAS_HEIGHT+BUFFER_PIXELS_Y+MOVE_SPEED_PIXELS,CurrentTopLayer);
-    new_area_left = old_area_left = xScreenToLightyears(-BUFFER_PIXELS_X,CurrentTopLayer);
-    new_area_right = old_area_right = xScreenToLightyears(CANVAS_WIDTH+BUFFER_PIXELS_X,CurrentTopLayer);
-    updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom);
+    setPosition(OffsetX, OffsetY + CurrentScale * MOVE_SPEED_PIXELS * LIGHTYEARS_PER_PIXEL_SCALE_1);
   }
 }
 
-function updateStars(old_area_left, old_area_top, old_area_right, old_area_bottom, new_area_left, new_area_top, new_area_right, new_area_bottom) {
+function setPosition(newOffsetX, newOffsetY) {
 
-  // Remove and generate the star per layer
+  OffsetX = newOffsetX;
+  OffsetY = newOffsetY;
+
   for (current_layer = CurrentTopLayer; current_layer > CurrentTopLayer - VISIBLE_LAYERS; current_layer--) {
     if (current_layer > 0) {
-      
-      //console.log("old area: " + xLightyearsToScreen(old_area_left, current_layer) + ',' + yLightyearsToScreen(old_area_top, current_layer) + ',' + xLightyearsToScreen(old_area_right, current_layer) + ',' + yLightyearsToScreen(old_area_bottom, current_layer));
-      //console.log("new area: " + xLightyearsToScreen(new_area_left, current_layer) + ',' + yLightyearsToScreen(new_area_top, current_layer) + ',' + xLightyearsToScreen(new_area_right, current_layer) + ',' + yLightyearsToScreen(new_area_bottom, current_layer));
-
-      // remove stars from the layer that are no longer visible
-      var amount = removeStarsFromOldArea(old_area_left, old_area_top, old_area_right,old_area_bottom, current_layer);
-
-      // add same amount of stars to the layer that have been deleted to new visible area
-      if (amount>0) {
-//        console.log("generating stars on screen area: " + xLightyearsToScreen(new_area_left,current_layer) + "," + yLightyearsToScreen(new_area_top,current_layer) + "," + xLightyearsToScreen(new_area_right,current_layer) + "," + yLightyearsToScreen(new_area_bottom,current_layer) );
-        generateStars(new_area_left, new_area_top, new_area_right, new_area_bottom, current_layer, amount);
-      }
-      
+      removeInvalidRegions(current_layer);
+      createNewRegions(current_layer);
     }
   }
 
-  StarsInScreen = 0;
-  for (var index = starsList.length - 1; index >= 0; index--) {
-      if (starsList[index].x >= xScreenToLightyears(0,1) && starsList[index].x < xScreenToLightyears(CANVAS_WIDTH,1) && starsList[index].y >= yScreenToLightyears(0,1) && starsList[index].y < yScreenToLightyears(CANVAS_HEIGHT,1)) {
-        StarsInScreen++;
-      }
-  }
 }
 
-function removeStarsFromOldArea(old_area_left,  old_area_top, old_area_right, old_area_bottom, layer_number) {
+function removeInvalidRegions(layer) {
+  var valid_area_left, valid_area_top, valid_area_right, valid_area_bottom;
   var remove_count = 0;
-  for (var index = starsList.length - 1; index >= 0; index--) {
-    if (starsList[index].layer == layer_number) {
-      if (starsList[index].x >= old_area_left && starsList[index].x < old_area_right && starsList[index].y >= old_area_top && starsList[index].y < old_area_bottom) {
-        console.log("removed star at: " + xLightyearsToScreen(starsList[index].x, 1) + ',' + yLightyearsToScreen(starsList[index].y, 1));
-        starsList.splice(index, 1);
-        RemoveCount++;
+  const used_scale = scaleUsedToCreateLayer(layer);
+  valid_area_left = (OffsetX - OffsetX % (CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale))-CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale;
+  valid_area_top = (OffsetY - OffsetY % (CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale))-CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale;
+  valid_area_right = valid_area_left+2*CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale;
+  valid_area_bottom = valid_area_top+2*CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale;
+  for (var index = regionsList.length - 1; index >= 0; index--) {
+    if (regionsList[index].Layer == layer) {
+      if (regionsList[index].OffsetX < valid_area_left || regionsList[index].OffsetY < valid_area_top || regionsList[index].OffsetX > valid_area_right || regionsList[index].OffsetY > valid_area_bottom) {
+        console.log("removed region. OffsetX:" + regionsList[index].OffsetX + ', OffsetY:' + regionsList[index].OffsetY + ', Layer:' + layer);
+        regionsList.splice(index, 1);
         remove_count++;
       }
     }
   };
   if(remove_count>0) {
-    console.log("removed " + remove_count + " stars from layer: " + layer_number);
-//    console.log("area: " + old_area_left + "," + old_area_top + "," + old_area_left + "," + old_area_left );
-//    console.log("screen area: " + xLightyearsToScreen(old_area_left,layer_number) + "," + yLightyearsToScreen(old_area_top,layer_number) + "," + xLightyearsToScreen(old_area_right,layer_number) + "," + yLightyearsToScreen(old_area_bottom,layer_number) );
+//    console.log("removed " + remove_count + " regions from layer: " + layer);
   }
-  return remove_count;
+}
+
+function createNewRegions(layer) {
+  const used_scale = scaleUsedToCreateLayer(layer);
+  var create_count = 0;
+  var used_offset_x = (OffsetX - OffsetX % (CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale))-CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale;
+  for(x=used_offset_x; x<used_offset_x+3*CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale; x+=CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale) {
+    var used_offset_y = (OffsetY - OffsetY % (CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale))-CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale;
+    for(y=used_offset_y; y<used_offset_y+3*CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale; y+=CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale) {
+      if(regionsList.find(el => el.OffsetX==x && el.OffsetY==y)==undefined) {
+        addRegion(x, y, layer, used_scale);
+        create_count++;
+      }
+    }
+  }
+  if(create_count>0) {
+//    console.log("created " + create_count + " regions on layer: " + layer);
+  }
+
 }
 
 function render() {
@@ -315,13 +297,13 @@ function createLayer1Star(x_real_minimum, y_real_minimum, x_real_maximum, y_real
   while (distance < 6) {
     new_star = { x: Math.random() * (x_real_maximum - x_real_minimum) + x_real_minimum, y: Math.random() * (y_real_maximum - y_real_minimum) + y_real_minimum, layer: 1 };
     distance = Math.sqrt(Math.pow(new_star.x, 2) + Math.pow(new_star.y, 2));
-console.log("created star at: " + xLightyearsToScreen(new_star.x, 1) + ',' + yLightyearsToScreen(new_star.y, 1));
+//    console.log("created star at: " + xLightyearsToScreen(new_star.x, 1) + ',' + yLightyearsToScreen(new_star.y, 1));
 }
   return new_star;
 }
 
-function generateStars(x_real_minimum, y_real_minimum, x_real_maximum, y_real_maximum, layer, num_stars) {
-  console.log("generating " + num_stars + " stars on layer: " + layer);
+function generateStars(starsList, x_real_minimum, y_real_minimum, x_real_maximum, y_real_maximum, layer, num_stars) {
+//  console.log("generating " + num_stars + " stars on layer: " + layer);
 
   for (i = 0; i < num_stars; i++) {
     var new_star;
@@ -334,42 +316,64 @@ function generateStars(x_real_minimum, y_real_minimum, x_real_maximum, y_real_ma
   }
 }
 
+function addRegion(x, y, layer, scale) {
+  var x_real_minimum = x;
+  var y_real_minimum = y;
+  var x_real_maximum = x + CANVAS_WIDTH_LIGHTYEARS_SCALE_1*scale;
+  var y_real_maximum = y + CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*scale;
+  var new_region = {};
+  var starsList = [];
+  new_region['OffsetX'] = x;
+  new_region['OffsetY'] = y;
+  new_region['Layer'] = layer;
+  new_region['starsList'] = starsList;
+
+  regionsList.push(new_region);
+//    console.log("real_minmax= " + x_real_minimum + "," + x_real_maximum + "," + y_real_minimum + "," + y_real_maximum);
+    generateStars(starsList, x_real_minimum,  y_real_minimum, x_real_maximum, y_real_maximum, layer, STARS_PER_LAYER);
+//    console.log("added region. OffsetX:" + x + ', OffsetY:' + y + ', Layer:' + layer);
+}
+
+// Creates a new layer with 9 regions of stars around the offset
+// Used when zooming in- and out and at beginning
 function createNewLayer(layer) {
   console.log("adding layer: " + layer);
+  var regions = 0;
   // determine the area to generate stars for
   // the scale is based on the largest scale the stars are visible in, 
   // so that we don't need to generate stars for every layer when zooming in- and out
-  const used_scale = layerToScale(layer + (VISIBLE_LAYERS - 1) + BUFFER_LAYERS);
-  var x_real_minimum = OffsetX - (STARS_AREA_HALFWIDTH_LAYER_1) * used_scale;
-  var x_real_maximum = OffsetX + (STARS_AREA_HALFWIDTH_LAYER_1) * used_scale;
-  var y_real_minimum = OffsetY - (STARS_AREA_HALFHEIGHT_LAYER_1) * used_scale;
-  var y_real_maximum = OffsetY + (STARS_AREA_HALFHEIGHT_LAYER_1) * used_scale;
-  if(layer==1) {
-    console.log("real_minmax= " + x_real_minimum + "," + x_real_maximum + "," + y_real_minimum + "," + y_real_maximum);
-    generateStars(x_real_minimum,  y_real_minimum, x_real_maximum, y_real_maximum, layer, STARS_PER_LAYER);
-    console.log("added " + STARS_PER_LAYER + " items.");
+  const used_scale = scaleUsedToCreateLayer(layer);
+  var used_offset_x = (OffsetX - OffsetX % (CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale))-CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale;
+  for(x=used_offset_x; x<used_offset_x+3*CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale; x+=CANVAS_WIDTH_LIGHTYEARS_SCALE_1*used_scale) {
+    var used_offset_y = (OffsetY - OffsetY % (CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale))-CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale;
+    for(y=used_offset_y; y<used_offset_y+3*CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale; y+=CANVAS_HEIGHT_LIGHTYEARS_SCALE_1*used_scale) {
+      addRegion(x, y, layer, used_scale);
+      regions++;
+    }
   }
+  console.log("added: " + regions + " regions");
+
 }
 
 function initStars() {
-  for (layer = 1; layer <= BUFFER_LAYERS + 1; layer++) {
+  for (layer = 1; layer <= 1 + BUFFER_LAYERS; layer++) {
     createNewLayer(layer);
   }
 }
 
-function removeOldLayer(layer_number) {
-  console.log("removing layer: " + layer_number);
+function removeInvalidLayer(layer) {
+  console.log("removing layer: " + layer);
   var remove_count = 0;
-  for (var index = starsList.length - 1; index >= 0; index--) {
-    if (starsList[index].layer == layer_number) {
-      starsList.splice(index, 1);
+  for (var index = regionsList.length - 1; index >= 0; index--) {
+    if (regionsList[index].Layer == layer) {
+      regionsList.splice(index, 1);
       remove_count++;
     }
   }
   if (remove_count == 0) {
-    console.log("REMOVED EMPTY LAYER!!! ");
+    console.log("Tried to remove layer with no regions!!! ");
   }
-  console.log("removed " + remove_count + " items.");
+  console.log("removed " + remove_count + " regions.");
 }
 
 function convertEtoNumber(stars_in_screen, index) {
@@ -384,6 +388,8 @@ function convertEtoNumber(stars_in_screen, index) {
 }
 
 function drawStars() {
+  NumStars = 0;
+  NumRegions = 0;
   var ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "black";
@@ -392,23 +398,30 @@ function drawStars() {
   ctx.shadowOffsetX = 1;
   ctx.shadowOffsetY = 1;
   ctx.shadowBlur = 5;
-  for (current_star of starsList) {
-    var depth = 1 + CurrentTopLayer - current_star.layer;
-    if (depth > 0 && depth <= VISIBLE_LAYERS) {
-      var star_size = 5 - parseInt((depth) / 10);
-      var color = 255 - depth * 5;
-      ctx.fillStyle = "rgb(" + color + "," + color + "," + color + ")";    
-      ctx.beginPath();
-      var screen_x = xLightyearsToScreen(current_star.x, depth);
-      var screen_y = yLightyearsToScreen(current_star.y, depth);
-      ctx.arc(screen_x, screen_y, star_size, 0 * Math.PI, 2 * Math.PI);
-      ctx.fill();
+  for (current_region of regionsList) {
+    NumRegions++;
+    for (current_star of current_region.starsList) {
+      NumStars++;
+      var screen_x = xLightyearsToScreen(current_star.x, CurrentTopLayer);
+      if(screen_x>=0 && screen_x<CANVAS_WIDTH) {
+        var screen_y = yLightyearsToScreen(current_star.y, CurrentTopLayer);
+        if(screen_y>=0 && screen_y<CANVAS_HEIGHT) {
+          var depth = 5 + CurrentTopLayer - current_star.layer;   // depth 5 .. 34 with VISIBLE_LAYERS=30
+          var star_size = 4 - parseInt((depth) / 10);
+          var color = 280 - depth * 5;
+          ctx.fillStyle = "rgb(" + color + "," + color + "," + color + ")";    
+          ctx.beginPath();
+          ctx.rect(screen_x, screen_y, star_size, star_size);
+//          ctx.arc(screen_x, screen_y, star_size, 0 * Math.PI, 2 * Math.PI);
+          ctx.fill();
+        }
+      }
     }
   }
   // draw Sun and Alpha centauri
   if (CurrentTopLayer < VISIBLE_LAYERS) {
     var depth = CurrentTopLayer;
-    var star_size = 5 - parseInt((depth) / 10);
+    var star_size = 4 - parseInt((depth) / 10);
     var color = 255 - depth * 5;
     ctx.fillStyle = "rgb(" + color + "," + color + "," + color + ")";
     ctx.beginPath();
@@ -439,11 +452,10 @@ function drawStars() {
     DrawText("Alpha centauri", xLightyearsToScreen(4.2, CurrentTopLayer), yLightyearsToScreen(0, CurrentTopLayer), 'white');
   }
 
-  DrawText("#Stars: " + starsList.length, 10, 700, 'white');
-  DrawText("RemoveCount: " + RemoveCount, 10, 730, 'white');
   var depth = CurrentTopLayer - 1;
   var screen_x = xLightyearsToScreen(4.2, depth);
-  DrawText("StarsInScreen: " + StarsInScreen, 10, 760, 'white');
+  DrawText("NumStars: " + NumStars, 10, 760, 'white');
+  DrawText("NumRegions: " + NumRegions, 10, 790, 'white');
 }
 
 function DrawText(text, x, y, color) {
